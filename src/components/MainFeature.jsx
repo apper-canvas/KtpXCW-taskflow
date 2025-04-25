@@ -1,47 +1,23 @@
 import { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   CheckCircle2, Circle, Clock, Calendar, Flag, Trash2, 
   Edit, ChevronDown, ChevronUp, AlertTriangle, Plus
 } from 'lucide-react';
 import { format } from 'date-fns';
+import apperService from '../services/apperService';
+import {
+  addTaskSuccess,
+  updateTaskSuccess,
+  deleteTaskSuccess
+} from '../store/tasksSlice';
 
-const MainFeature = ({ activeFilter, showCompleted }) => {
-  const [tasks, setTasks] = useState(() => {
-    const savedTasks = localStorage.getItem('tasks');
-    return savedTasks ? JSON.parse(savedTasks) : [
-      {
-        id: '1',
-        title: 'Complete project proposal',
-        description: 'Finish the draft and send it to the team for review',
-        isCompleted: false,
-        priority: 'high',
-        dueDate: new Date(Date.now() + 86400000).toISOString(), // tomorrow
-        createdAt: new Date().toISOString(),
-        categoryId: 'work'
-      },
-      {
-        id: '2',
-        title: 'Go for a 30-minute run',
-        description: 'Morning run in the park',
-        isCompleted: false,
-        priority: 'medium',
-        dueDate: new Date().toISOString(), // today
-        createdAt: new Date().toISOString(),
-        categoryId: 'health'
-      },
-      {
-        id: '3',
-        title: 'Read chapter 5 of textbook',
-        description: 'Take notes on key concepts',
-        isCompleted: true,
-        priority: 'low',
-        dueDate: new Date(Date.now() - 86400000).toISOString(), // yesterday
-        createdAt: new Date().toISOString(),
-        categoryId: 'study'
-      }
-    ];
-  });
+const MainFeature = () => {
+  const dispatch = useDispatch();
+  const { tasks, loading, error, filters } = useSelector((state) => state.tasks);
+  const { activeFilter, showCompleted } = filters;
+  const { categories } = useSelector((state) => state.categories);
   
   const [newTask, setNewTask] = useState({
     title: '',
@@ -54,17 +30,6 @@ const MainFeature = ({ activeFilter, showCompleted }) => {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState(null);
   const [editingTaskId, setEditingTaskId] = useState(null);
-  
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
-  
-  const categories = {
-    work: { name: 'Work', color: 'bg-blue-500' },
-    personal: { name: 'Personal', color: 'bg-green-500' },
-    study: { name: 'Study', color: 'bg-purple-500' },
-    health: { name: 'Health', color: 'bg-yellow-500' }
-  };
   
   const priorityStyles = {
     high: { 
@@ -81,43 +46,68 @@ const MainFeature = ({ activeFilter, showCompleted }) => {
     }
   };
   
-  const handleToggleComplete = (taskId) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, isCompleted: !task.isCompleted } : task
-    ));
+  const handleToggleComplete = async (taskId, currentStatus) => {
+    try {
+      const updatedTask = await apperService.updateTask(taskId, { 
+        isCompleted: !currentStatus 
+      });
+      dispatch(updateTaskSuccess(updatedTask));
+    } catch (error) {
+      console.error("Error toggling task completion:", error);
+    }
   };
   
-  const handleDeleteTask = (taskId) => {
-    setTasks(tasks.filter(task => task.id !== taskId));
+  const handleDeleteTask = async (taskId) => {
+    try {
+      await apperService.deleteTask(taskId);
+      dispatch(deleteTaskSuccess(taskId));
+    } catch (error) {
+      console.error("Error deleting task:", error);
+    }
   };
   
-  const handleAddTask = (e) => {
+  const handleAddTask = async (e) => {
     e.preventDefault();
     
-    const newTaskItem = {
-      id: Date.now().toString(),
-      ...newTask,
-      isCompleted: false,
-      createdAt: new Date().toISOString(),
-      dueDate: new Date(newTask.dueDate).toISOString()
-    };
-    
-    setTasks([newTaskItem, ...tasks]);
-    setNewTask({
-      title: '',
-      description: '',
-      priority: 'medium',
-      dueDate: format(new Date(), 'yyyy-MM-dd'),
-      categoryId: 'personal'
-    });
-    setIsFormOpen(false);
+    try {
+      const taskData = {
+        ...newTask,
+        isCompleted: false,
+        dueDate: new Date(newTask.dueDate).toISOString()
+      };
+      
+      const createdTask = await apperService.createTask(taskData);
+      dispatch(addTaskSuccess(createdTask));
+      
+      setNewTask({
+        title: '',
+        description: '',
+        priority: 'medium',
+        dueDate: format(new Date(), 'yyyy-MM-dd'),
+        categoryId: 'personal'
+      });
+      setIsFormOpen(false);
+    } catch (error) {
+      console.error("Error adding task:", error);
+    }
   };
   
-  const handleUpdateTask = (taskId, updatedFields) => {
-    setTasks(tasks.map(task => 
-      task.id === taskId ? { ...task, ...updatedFields } : task
-    ));
-    setEditingTaskId(null);
+  const handleUpdateTask = async (taskId, updatedFields) => {
+    try {
+      // Get the current task
+      const currentTask = tasks.find(task => task.id === taskId);
+      
+      // Update the task
+      const updatedTask = await apperService.updateTask(taskId, {
+        ...currentTask,
+        ...updatedFields
+      });
+      
+      dispatch(updateTaskSuccess(updatedTask));
+      setEditingTaskId(null);
+    } catch (error) {
+      console.error("Error updating task:", error);
+    }
   };
   
   const filteredTasks = tasks.filter(task => {
@@ -266,7 +256,22 @@ const MainFeature = ({ activeFilter, showCompleted }) => {
         )}
       </AnimatePresence>
       
-      {filteredTasks.length === 0 ? (
+      {loading ? (
+        <div className="flex justify-center items-center h-[200px]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+        </div>
+      ) : error ? (
+        <div className="card p-6 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800">
+          <h3 className="text-red-600 dark:text-red-400 font-medium mb-2">Error loading tasks</h3>
+          <p className="text-red-500 dark:text-red-300">{error}</p>
+          <button 
+            className="mt-4 btn btn-outline text-red-600 border-red-300 hover:bg-red-50"
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      ) : filteredTasks.length === 0 ? (
         <div className="card p-8 text-center">
           <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-surface-100 dark:bg-surface-700 flex items-center justify-center">
             <CheckCircle2 size={32} className="text-surface-400" />
@@ -386,7 +391,7 @@ const MainFeature = ({ activeFilter, showCompleted }) => {
                   <>
                     <div className="p-4 flex items-start gap-3">
                       <button 
-                        onClick={() => handleToggleComplete(task.id)}
+                        onClick={() => handleToggleComplete(task.id, task.isCompleted)}
                         className="mt-0.5 flex-shrink-0 text-surface-400 hover:text-primary transition-colors"
                       >
                         {task.isCompleted ? (

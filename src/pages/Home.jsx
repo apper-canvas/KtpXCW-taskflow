@@ -1,12 +1,36 @@
-import { useState } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Plus, Filter, Calendar, CheckCircle2 } from 'lucide-react';
+import { useDispatch, useSelector } from 'react-redux';
 import MainFeature from '../components/MainFeature';
+import { 
+  setActiveFilter, 
+  setShowCompleted,
+  fetchTasksStart,
+  fetchTasksSuccess,
+  fetchTasksFailure
+} from '../store/tasksSlice';
+import apperService from '../services/apperService';
 
 const Home = () => {
-  const [activeFilter, setActiveFilter] = useState('all');
-  const [showCompleted, setShowCompleted] = useState(true);
+  const dispatch = useDispatch();
+  const { activeFilter, showCompleted } = useSelector((state) => state.tasks.filters);
+  const { categories } = useSelector((state) => state.categories);
   
+  useEffect(() => {
+    const loadTasks = async () => {
+      try {
+        dispatch(fetchTasksStart());
+        const tasks = await apperService.fetchTasks();
+        dispatch(fetchTasksSuccess(tasks));
+      } catch (error) {
+        dispatch(fetchTasksFailure(error.message));
+      }
+    };
+    
+    loadTasks();
+  }, [dispatch]);
+
   const filters = [
     { id: 'all', label: 'All Tasks' },
     { id: 'today', label: 'Today' },
@@ -25,15 +49,6 @@ const Home = () => {
             Organize, prioritize, and complete your tasks efficiently
           </p>
         </div>
-        
-        <motion.button
-          whileHover={{ scale: 1.03 }}
-          whileTap={{ scale: 0.97 }}
-          className="btn btn-primary flex items-center gap-2 rounded-full px-5 py-2.5 shadow-soft"
-        >
-          <Plus size={18} />
-          <span>New Task</span>
-        </motion.button>
       </section>
       
       <section className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -48,7 +63,7 @@ const Home = () => {
               {filters.map(filter => (
                 <li key={filter.id}>
                   <button
-                    onClick={() => setActiveFilter(filter.id)}
+                    onClick={() => dispatch(setActiveFilter(filter.id))}
                     className={`w-full text-left px-3 py-2 rounded-lg transition-all flex items-center ${
                       activeFilter === filter.id 
                         ? 'bg-primary/10 dark:bg-primary/20 text-primary dark:text-primary-light font-medium'
@@ -75,22 +90,12 @@ const Home = () => {
               </h3>
               
               <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-                  <span>Work</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                  <span>Personal</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-purple-500"></div>
-                  <span>Study</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                  <span>Health</span>
-                </div>
+                {Object.entries(categories).map(([id, category]) => (
+                  <div key={id} className="flex items-center gap-2">
+                    <div className={`w-3 h-3 rounded-full ${category.color}`}></div>
+                    <span>{category.name}</span>
+                  </div>
+                ))}
               </div>
             </div>
             
@@ -99,7 +104,7 @@ const Home = () => {
                 <input 
                   type="checkbox" 
                   checked={showCompleted}
-                  onChange={() => setShowCompleted(!showCompleted)}
+                  onChange={() => dispatch(setShowCompleted(!showCompleted))}
                   className="rounded text-primary focus:ring-primary"
                 />
                 <span className="flex items-center gap-1">
@@ -112,7 +117,7 @@ const Home = () => {
         </div>
         
         <div className="lg:col-span-3">
-          <MainFeature activeFilter={activeFilter} showCompleted={showCompleted} />
+          <MainFeature />
         </div>
       </section>
     </div>

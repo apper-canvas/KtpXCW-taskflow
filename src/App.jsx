@@ -1,9 +1,13 @@
 import { useState, useEffect } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useNavigate } from 'react-router-dom';
 import { Sun, Moon } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useSelector } from 'react-redux';
 import Home from './pages/Home';
 import NotFound from './pages/NotFound';
+import Login from './pages/Login';
+import Signup from './pages/Signup';
+import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
   const [darkMode, setDarkMode] = useState(() => {
@@ -11,6 +15,9 @@ function App() {
     return savedMode ? JSON.parse(savedMode) : 
       window.matchMedia('(prefers-color-scheme: dark)').matches;
   });
+
+  const { isAuthenticated, user } = useSelector((state) => state.user);
+  const navigate = useNavigate();
 
   useEffect(() => {
     if (darkMode) {
@@ -29,26 +36,53 @@ function App() {
             <motion.div 
               initial={{ rotate: -10 }}
               animate={{ rotate: 0 }}
-              className="text-primary-dark dark:text-primary-light font-bold text-2xl"
+              className="text-primary-dark dark:text-primary-light font-bold text-2xl cursor-pointer"
+              onClick={() => navigate('/')}
             >
               TaskFlow
             </motion.div>
           </div>
           
-          <motion.button
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setDarkMode(!darkMode)}
-            className="p-2 rounded-full bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600 transition-colors"
-            aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {darkMode ? <Sun size={20} /> : <Moon size={20} />}
-          </motion.button>
+          <div className="flex items-center gap-4">
+            {isAuthenticated ? (
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-medium">
+                  Welcome, {user?.firstName || 'User'}
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="text-surface-600 hover:text-primary dark:text-surface-300 dark:hover:text-primary-light transition-colors"
+                >
+                  Login
+                </button>
+                <button
+                  onClick={() => navigate('/signup')}
+                  className="text-surface-600 hover:text-primary dark:text-surface-300 dark:hover:text-primary-light transition-colors"
+                >
+                  Sign Up
+                </button>
+              </div>
+            )}
+            <motion.button
+              whileTap={{ scale: 0.95 }}
+              onClick={() => setDarkMode(!darkMode)}
+              className="p-2 rounded-full bg-surface-100 dark:bg-surface-700 hover:bg-surface-200 dark:hover:bg-surface-600 transition-colors"
+              aria-label={darkMode ? "Switch to light mode" : "Switch to dark mode"}
+            >
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </motion.button>
+          </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-6">
         <Routes>
-          <Route path="/" element={<Home />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route path="/" element={<ProtectedRoute><Home /></ProtectedRoute>} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
